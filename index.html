@@ -1,36 +1,42 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
+const { jsPDF } = window.jspdf;
+
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const upload = document.getElementById("upload");
-const pdfContainer = document.getElementById("pdf-container");
-const status = document.getElementById("status");
 const addTextBtn = document.getElementById("addTextBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const status = document.getElementById("status");
+const pdfContainer = document.getElementById("pdf-container");
+const sidebar = document.getElementById("sidebar");
 
 let pdfDoc = null;
-let overlays = [];
+let pages = []; // { canvas, overlay }
 
-upload.onchange = async function (e) {
+upload.onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  status.innerText = "Loading PDF...";
+  status.innerText = "Loading PDF…";
   pdfContainer.innerHTML = "";
-  overlays = [];
+  sidebar.innerHTML = "";
+  pages = [];
 
   const reader = new FileReader();
   reader.readAsArrayBuffer(file);
 
-  reader.onload = async function () {
-    const typedarray = new Uint8Array(this.result);
+  reader.onload = async () => {
+    const typedarray = new Uint8Array(reader.result);
     pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
 
     status.innerText = `PDF loaded (${pdfDoc.numPages} pages)`;
 
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-      await renderPage(pageNum);
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      await renderPage(i);
     }
   };
 };
@@ -41,20 +47,22 @@ async function renderPage(pageNum) {
   const viewport = page.getViewport({ scale });
 
   const wrapper = document.createElement("div");
+  wrapper.className = "page-wrapper";
   wrapper.style.position = "relative";
-  wrapper.style.margin = "20px auto";
+  wrapper.style.marginBottom = "30px";
   wrapper.style.background = "white";
-  wrapper.style.boxShadow = "0 10px 25px rgba(0,0,0,0.08)";
+  wrapper.style.boxShadow = "0 10px 30px rgba(0,0,0,0.08)";
 
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-
   wrapper.appendChild(canvas);
   pdfContainer.appendChild(wrapper);
 
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  await page.render({
+    canvasContext: canvas.getContext("2d"),
+    viewport
+  }).promise;
 
   const overlay = document.createElement("div");
   overlay.style.position = "absolute";
@@ -62,56 +70,125 @@ async function renderPage(pageNum) {
   overlay.style.left = "0";
   overlay.style.width = canvas.width + "px";
   overlay.style.height = canvas.height + "px";
-
   wrapper.appendChild(overlay);
-  overlays.push(overlay);
+
+  pages.push({ canvas, overlay });
+
+  // Thumbnail
+  const thumb = document.createElement("canvas");
+  const tViewport = page.getViewport({ scale: 0.25 });
+  thumb.width = tViewport.width;
+  thumb.height = tViewport.height;
+
+  page.render({
+    canvasContext: thumb.getContext("2d"),
+    viewport: tViewport
+  });
+
+  thumb.className = "thumb";
+  thumb.onclick = () => wrapper.scrollIntoView({ behavior: "smooth" });
+  sidebar.appendChild(thumb);
 }
 
-addTextBtn.onclick = function () {
-  if (!overlays.length) {
+addTextBtn.onclick = () => {
+  if (!pages.length) {
     alert("Upload a PDF first");
     return;
   }
 
-  const textBox = document.createElement("div");
-  textBox.contentEditable = true;
-  textBox.innerText = "Edit text";
-  textBox.style.position = "absolute";
-  textBox.style.top = "100px";
-  textBox.style.left = "100px";
-  textBox.style.fontSize = "22px";
-  textBox.style.fontFamily = "Times New Roman";
-  textBox.style.color = "black";
-  textBox.style.border = "1px dashed #2563eb";
-  textBox.style.padding = "4px";
-  textBox.style.cursor = "move";
-  textBox.style.background = "transparent";
+  const box = document.createElement("div");
+  box.contentEditable = true;
+  box.innerText = "Edit text";
+  box.style.position = "absolute";
+  box.style.top = "120px";
+  box.style.left = "120px";
+  box.style.fontSize = "20px";
+  box.style.fontFamily = "Times New Roman";
+  box.style.border = "1px dashed #2563eb";
+  box.style.padding = "4px 6px";
+  box.style.cursor = "move";
+  box.style.background = "transparent";
 
-  enableDrag(textBox);
-  overlays[0].appendChild(textBox);
+  const handle = document.createElement("div");
+  handle.style.width = "10px";
+  handle.style.height = "10px";
+  handle.style.background = "#2563eb";
+  handle.style.position = "absolute";
+  handle.style.right = "-6px";
+  handle.style.bottom = "-6px";
+  handle.style.cursor = "se-resize";
+  box.appendChild(handle);
+
+  enableDrag(box);
+  enableResize(box, handle);
+
+  pages[0].overlay.appendChild(box);
 };
 
 function enableDrag(el) {
-  let isDown = false;
-  let offsetX = 0;
-  let offsetY = 0;
+  let dragging = false, ox = 0, oy = 0;
 
   el.onmousedown = (e) => {
-    isDown = true;
-    offsetX = e.offsetX;
-    offsetY = e.offsetY;
+    if (e.target !== el) return;
+    dragging = true;
+    ox = e.offsetX;
+    oy = e.offsetY;
   };
 
   document.onmousemove = (e) => {
-    if (!isDown) return;
-    el.style.left = e.pageX - offsetX + "px";
-    el.style.top = e.pageY - offsetY + "px";
+    if (!dragging) return;
+    el.style.left = e.pageX - ox + "px";
+    el.style.top = e.pageY - oy + "px";
   };
 
-  document.onmouseup = () => {
-    isDown = false;
-  };
+  document.onmouseup = () => dragging = false;
 }
+
+function enableResize(box, handle) {
+  let resizing = false;
+
+  handle.onmousedown = (e) => {
+    e.stopPropagation();
+    resizing = true;
+  };
+
+  document.onmousemove = (e) => {
+    if (!resizing) return;
+    box.style.width = e.pageX - box.offsetLeft + "px";
+    box.style.height = e.pageY - box.offsetTop + "px";
+  };
+
+  document.onmouseup = () => resizing = false;
+}
+
+downloadBtn.onclick = () => {
+  if (!pages.length) return;
+
+  status.innerText = "Exporting PDF…";
+
+  const pdf = new jsPDF("p", "pt");
+
+  pages.forEach((p, index) => {
+    const merged = document.createElement("canvas");
+    merged.width = p.canvas.width;
+    merged.height = p.canvas.height;
+    const ctx = merged.getContext("2d");
+
+    ctx.drawImage(p.canvas, 0, 0);
+
+    p.overlay.childNodes.forEach(el => {
+      ctx.font = `${el.style.fontSize} ${el.style.fontFamily}`;
+      ctx.fillStyle = "black";
+      ctx.fillText(el.innerText, el.offsetLeft, el.offsetTop + 20);
+    });
+
+    const img = merged.toDataURL("image/jpeg", 1.0);
+    if (index > 0) pdf.addPage();
+    pdf.addImage(img, "JPEG", 0, 0, pdf.internal.pageSize.getWidth(),
+      (merged.height * pdf.internal.pageSize.getWidth()) / merged.width);
+  });
+
+  pdf.save("edited.pdf");
+  status.innerText = "PDF exported successfully";
+};
 </script>
-
-
