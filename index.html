@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MKB PDF Editor</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Fabric.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+
+  <!-- pdf-lib -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+      background: #f7f7f7;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      max-width: 100%;
+      background: white;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>MKB PDF Text Editor (MVP)</h2>
+
+  <input type="file" id="upload" accept="application/pdf">
+  <br><br>
+
+  <button onclick="addText()">Add Text</button>
+  <button onclick="exportPDF()">Download PDF</button>
+
+  <br><br>
+
+  <canvas id="pdfCanvas"></canvas>
+
+  <script>
+    const upload = document.getElementById("upload");
+    const canvas = new fabric.Canvas("pdfCanvas");
+
+    upload.onchange = async function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.setWidth(viewport.width);
+      canvas.setHeight(viewport.height);
+
+      const pdfCanvas = document.createElement("canvas");
+      pdfCanvas.width = viewport.width;
+      pdfCanvas.height = viewport.height;
+
+      const ctx = pdfCanvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const img = new fabric.Image(pdfCanvas);
+      canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+    };
+
+    function addText() {
+      const text = new fabric.IText("Edit text", {
+        left: 100,
+        top: 100,
+        fontSize: 16,
+        fill: "black"
+      });
+      canvas.add(text);
+      canvas.setActiveObject(text);
+    }
+
+    async function exportPDF() {
+      const pdfDoc = await PDFLib.PDFDocument.create();
+      const page = pdfDoc.addPage([canvas.width, canvas.height]);
+
+      const png = canvas.toDataURL("image/png");
+      const img = await pdfDoc.embedPng(png);
+
+      page.drawImage(img, {
+        x: 0,
+        y: 0,
+        width: canvas.width,
+        height: canvas.height
+      });
+
+      const bytes = await pdfDoc.save();
+      const blob = new Blob([bytes], { type: "application/pdf" });
+
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "edited.pdf";
+      link.click();
+    }
+  </script>
+</body>
+</html>
