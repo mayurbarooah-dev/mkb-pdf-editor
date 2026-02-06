@@ -1,16 +1,17 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>MKB PDF Editor</title>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-</script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  </script>
 
   <!-- Fabric.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
@@ -20,45 +21,115 @@
 
   <style>
     body {
-      font-family: Arial, sans-serif;
-      padding: 10px;
-      background: #f7f7f7;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
+      background: #f5f7fa;
+      color: #111;
     }
-    button {
-      padding: 8px 12px;
-      margin: 5px;
-      cursor: pointer;
-    }
-    canvas {
-      border: 1px solid #ccc;
-      max-width: 100%;
+
+    header {
+      padding: 16px 24px;
       background: white;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .hint {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    input[type="file"] {
+      padding: 6px;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: white;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    button.primary {
+      background: #2563eb;
+      color: white;
+      border: none;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .canvas-wrap {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+      overflow: auto;
+    }
+
+    canvas {
+      display: block;
+      margin: auto;
+      border: 1px solid #e5e7eb;
     }
   </style>
 </head>
 
 <body>
-  <h2>MKB PDF Text Editor (MVP)</h2>
+  <header>
+    MKB PDF Text Editor
+  </header>
 
-  <input type="file" id="upload" accept="application/pdf">
-  <br><br>
+  <div class="container">
+    <div class="hint">
+      Upload a PDF → add or edit text visually → download without disturbing background
+    </div>
 
-  <button onclick="addText()">Add Text</button>
-  <button onclick="exportPDF()">Download PDF</button>
+    <div class="toolbar">
+      <input type="file" id="upload" accept="application/pdf" />
+      <button onclick="addText()">Add Text</button>
+      <button class="primary" onclick="exportPDF()">Download PDF</button>
+    </div>
 
-  <br><br>
-
-  <canvas id="pdfCanvas"></canvas>
+    <div class="canvas-wrap">
+      <canvas id="pdfCanvas"></canvas>
+    </div>
+  </div>
 
   <script>
     const upload = document.getElementById("upload");
     const canvas = new fabric.Canvas("pdfCanvas");
 
     upload.onchange = async function (e) {
+      alert("File selected. JavaScript is running.");
+
       const file = e.target.files[0];
       if (!file) return;
 
       const arrayBuffer = await file.arrayBuffer();
+
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
 
@@ -113,3 +184,4 @@
   </script>
 </body>
 </html>
+
