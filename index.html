@@ -1,113 +1,117 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>MKB PDF Editor</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-  </script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-  <!-- Fabric.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+const upload = document.getElementById("upload");
+const pdfContainer = document.getElementById("pdf-container");
+const status = document.getElementById("status");
+const addTextBtn = document.getElementById("addTextBtn");
 
-  <!-- pdf-lib -->
-  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+let pdfDoc = null;
+let overlays = [];
 
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont;
-      background: #f5f7fa;
-      color: #111;
+upload.onchange = async function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  status.innerText = "Loading PDF...";
+  pdfContainer.innerHTML = "";
+  overlays = [];
+
+  const reader = new FileReader();
+  reader.readAsArrayBuffer(file);
+
+  reader.onload = async function () {
+    const typedarray = new Uint8Array(this.result);
+    pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
+
+    status.innerText = `PDF loaded (${pdfDoc.numPages} pages)`;
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      await renderPage(pageNum);
     }
+  };
+};
 
-    header {
-      padding: 16px 24px;
-      background: white;
-      border-bottom: 1px solid #e5e7eb;
-      font-weight: 600;
-    }
+async function renderPage(pageNum) {
+  const page = await pdfDoc.getPage(pageNum);
+  const scale = 1.3;
+  const viewport = page.getViewport({ scale });
 
-    .container {
-      max-width: 1200px;
-      margin: 24px auto;
-      padding: 0 16px;
-    }
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "relative";
+  wrapper.style.margin = "20px auto";
+  wrapper.style.background = "white";
+  wrapper.style.boxShadow = "0 10px 25px rgba(0,0,0,0.08)";
 
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
 
-    button {
-      padding: 8px 14px;
-      border-radius: 6px;
-      border: 1px solid #d1d5db;
-      background: white;
-      cursor: pointer;
-    }
+  wrapper.appendChild(canvas);
+  pdfContainer.appendChild(wrapper);
 
-    button.primary {
-      background: #2563eb;
-      color: white;
-      border: none;
-    }
+  await page.render({ canvasContext: ctx, viewport }).promise;
 
-    .status {
-      margin: 10px 0;
-      font-size: 14px;
-      color: #374151;
-    }
+  const overlay = document.createElement("div");
+  overlay.style.position = "absolute";
+  overlay.style.top = "0";
+  overlay.style.left = "0";
+  overlay.style.width = canvas.width + "px";
+  overlay.style.height = canvas.height + "px";
 
-    .status.error {
-      color: #b91c1c;
-    }
+  wrapper.appendChild(overlay);
+  overlays.push(overlay);
+}
 
-    .canvas-wrap {
-      background: white;
-      border-radius: 8px;
-      padding: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.06);
-      overflow: auto;
-    }
+addTextBtn.onclick = function () {
+  if (!overlays.length) {
+    alert("Upload a PDF first");
+    return;
+  }
 
-    canvas {
-      display: block;
-      margin: auto;
-      border: 1px solid #e5e7eb;
-    }
-  </style>
-</head>
+  const textBox = document.createElement("div");
+  textBox.contentEditable = true;
+  textBox.innerText = "Edit text";
+  textBox.style.position = "absolute";
+  textBox.style.top = "100px";
+  textBox.style.left = "100px";
+  textBox.style.fontSize = "22px";
+  textBox.style.fontFamily = "Times New Roman";
+  textBox.style.color = "black";
+  textBox.style.border = "1px dashed #2563eb";
+  textBox.style.padding = "4px";
+  textBox.style.cursor = "move";
+  textBox.style.background = "transparent";
 
-<body>
-  <header>MKB PDF Text Editor</header>
+  enableDrag(textBox);
+  overlays[0].appendChild(textBox);
+};
 
-  <div class="container">
-    <div class="toolbar">
-      <input type="file" id="upload" accept="application/pdf" />
-      <button onclick="addText()">Add Text</button>
-      <button class="primary" onclick="exportPDF()">Download PDF</button>
-    </div>
+function enableDrag(el) {
+  let isDown = false;
+  let offsetX = 0;
+  let offsetY = 0;
 
-    <div id="status" class="status">Waiting for PDF…</div>
+  el.onmousedown = (e) => {
+    isDown = true;
+    offsetX = e.offsetX;
+    offsetY = e.offsetY;
+  };
 
-    <div class="canvas-wrap">
-      <canvas id="pdfCanvas"></canvas>
-    </div>
-  </div>
+  document.onmousemove = (e) => {
+    if (!isDown) return;
+    el.style.left = e.pageX - offsetX + "px";
+    el.style.top = e.pageY - offsetY + "px";
+  };
 
-  <script>
-    const upload = document.getElementById("upload");
-    const statusEl = document.getElementById("status");
-    const canvas = new fabric.Canvas("pdfCanvas");
+  document.onmouseup = () => {
+    isDown = false;
+  };
+}
+</script>
 
-    function setStatus(msg, isErr
 
