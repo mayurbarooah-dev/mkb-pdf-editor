@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>MKB PDF Editor</title>
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- PDF.js -->
@@ -22,7 +21,7 @@
   <style>
     body {
       margin: 0;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont;
       background: #f5f7fa;
       color: #111;
     }
@@ -31,7 +30,6 @@
       padding: 16px 24px;
       background: white;
       border-bottom: 1px solid #e5e7eb;
-      font-size: 18px;
       font-weight: 600;
     }
 
@@ -41,25 +39,12 @@
       padding: 0 16px;
     }
 
-    .hint {
-      font-size: 14px;
-      color: #6b7280;
-      margin-bottom: 12px;
-    }
-
     .toolbar {
       display: flex;
       gap: 10px;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
       flex-wrap: wrap;
-    }
-
-    input[type="file"] {
-      padding: 6px;
-      background: white;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
     }
 
     button {
@@ -68,7 +53,6 @@
       border: 1px solid #d1d5db;
       background: white;
       cursor: pointer;
-      font-weight: 500;
     }
 
     button.primary {
@@ -77,8 +61,14 @@
       border: none;
     }
 
-    button:hover {
-      opacity: 0.9;
+    .status {
+      margin: 10px 0;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .status.error {
+      color: #b91c1c;
     }
 
     .canvas-wrap {
@@ -98,20 +88,16 @@
 </head>
 
 <body>
-  <header>
-    MKB PDF Text Editor
-  </header>
+  <header>MKB PDF Text Editor</header>
 
   <div class="container">
-    <div class="hint">
-      Upload a PDF → add or edit text visually → download without disturbing background
-    </div>
-
     <div class="toolbar">
       <input type="file" id="upload" accept="application/pdf" />
       <button onclick="addText()">Add Text</button>
       <button class="primary" onclick="exportPDF()">Download PDF</button>
     </div>
+
+    <div id="status" class="status">Waiting for PDF…</div>
 
     <div class="canvas-wrap">
       <canvas id="pdfCanvas"></canvas>
@@ -120,68 +106,8 @@
 
   <script>
     const upload = document.getElementById("upload");
+    const statusEl = document.getElementById("status");
     const canvas = new fabric.Canvas("pdfCanvas");
 
-    upload.onchange = async function (e) {
-      alert("File selected. JavaScript is running.");
-
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const arrayBuffer = await file.arrayBuffer();
-
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
-
-      const viewport = page.getViewport({ scale: 1.5 });
-      canvas.setWidth(viewport.width);
-      canvas.setHeight(viewport.height);
-
-      const pdfCanvas = document.createElement("canvas");
-      pdfCanvas.width = viewport.width;
-      pdfCanvas.height = viewport.height;
-
-      const ctx = pdfCanvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      const img = new fabric.Image(pdfCanvas);
-      canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-    };
-
-    function addText() {
-      const text = new fabric.IText("Edit text", {
-        left: 100,
-        top: 100,
-        fontSize: 16,
-        fill: "black"
-      });
-      canvas.add(text);
-      canvas.setActiveObject(text);
-    }
-
-    async function exportPDF() {
-      const pdfDoc = await PDFLib.PDFDocument.create();
-      const page = pdfDoc.addPage([canvas.width, canvas.height]);
-
-      const png = canvas.toDataURL("image/png");
-      const img = await pdfDoc.embedPng(png);
-
-      page.drawImage(img, {
-        x: 0,
-        y: 0,
-        width: canvas.width,
-        height: canvas.height
-      });
-
-      const bytes = await pdfDoc.save();
-      const blob = new Blob([bytes], { type: "application/pdf" });
-
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "edited.pdf";
-      link.click();
-    }
-  </script>
-</body>
-</html>
+    function setStatus(msg, isErr
 
