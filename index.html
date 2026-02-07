@@ -1,201 +1,234 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8" />
 <title>MKB PDF Editor</title>
 
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<!-- PDF-lib -->
 <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
 <style>
+:root {
+  --bg: #0b1020;
+  --panel: #111827;
+  --accent: #2563eb;
+  --text: #e5e7eb;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui;
-  background: #0a0f1e;
-  color: #e5e7eb;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
+
 header {
-  padding: 14px 22px;
-  background: #020617;
-  border-bottom: 1px solid #1f2933;
-}
-.toolbar {
-  padding: 12px 22px;
+  padding: 14px 20px;
+  background: linear-gradient(180deg,#0b1020,#020617);
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  align-items: center;
+}
+
+button, input, select {
   background: #020617;
-}
-button, input {
-  background: #111827;
   color: white;
-  border: 1px solid #374151;
+  border: 1px solid #1f2937;
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 8px 12px;
 }
+
 button.primary {
-  background: #2563eb;
+  background: var(--accent);
   border: none;
 }
-#viewer {
+
+#app {
   display: flex;
+  height: calc(100vh - 64px);
 }
-#pages {
-  padding: 20px;
+
+#thumbnails {
+  width: 140px;
+  background: var(--panel);
+  overflow-y: auto;
+  border-right: 1px solid #1f2937;
+}
+
+#thumbnails img {
+  width: 100%;
+  cursor: pointer;
+  border-bottom: 1px solid #1f2937;
+}
+
+#editor {
   flex: 1;
+  overflow: auto;
+  position: relative;
 }
+
 .page {
   position: relative;
+  margin: 20px auto;
   background: white;
-  margin-bottom: 24px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.4);
 }
-.text-box {
+
+.textLayer span {
+  cursor: pointer;
+}
+
+.text-selected {
+  outline: 2px solid var(--accent);
+  background: rgba(37,99,235,0.1);
+}
+
+.editor-box {
   position: absolute;
-  cursor: text;
+  z-index: 9999;
+  border: 2px solid var(--accent);
+  background: white;
+  resize: none;
 }
-.text-box:hover {
-  outline: 1px dashed #2563eb;
-}
-.editor {
-  position: absolute;
-  border: 1px solid #2563eb;
-  resize: both;
-  overflow: hidden;
-  background: rgba(255,255,255,.98);
+
+#toolbar {
+  display: flex;
+  gap: 8px;
 }
 </style>
 </head>
 
 <body>
 
-<header><b>MKB PDF Editor</b></header>
+<header>
+  <input type="file" id="fileInput" />
+  <button id="toggleThumbs">Thumbnails</button>
 
-<div class="toolbar">
-  <input type="file" id="file" accept="application/pdf">
-  <button class="primary" id="download">Download PDF</button>
-</div>
+  <div id="toolbar">
+    <select id="fontSize">
+      <option value="10">10</option>
+      <option value="12" selected>12</option>
+      <option value="14">14</option>
+      <option value="18">18</option>
+    </select>
 
-<div id="viewer">
-  <div id="pages"></div>
+    <input type="color" id="fontColor" value="#000000" />
+    <button id="boldBtn">Bold</button>
+  </div>
+
+  <button class="primary" id="downloadBtn">Download PDF</button>
+</header>
+
+<div id="app">
+  <div id="thumbnails"></div>
+  <div id="editor"></div>
 </div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-let pdfDoc, edits = [];
+let pdfDoc, edits = [], currentStyle = { size:12, color:"#000000", bold:false };
 
-document.getElementById('file').onchange = async e => {
+document.getElementById("fontSize").onchange = e => currentStyle.size = +e.target.value;
+document.getElementById("fontColor").onchange = e => currentStyle.color = e.target.value;
+document.getElementById("boldBtn").onclick = () => currentStyle.bold = !currentStyle.bold;
+
+document.getElementById("toggleThumbs").onclick = () =>
+  document.getElementById("thumbnails").classList.toggle("hidden");
+
+document.getElementById("fileInput").onchange = async e => {
   const buf = await e.target.files[0].arrayBuffer();
-  pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-  pages.innerHTML = '';
-  edits = [];
-  for (let i = 1; i <= pdfDoc.numPages; i++) renderPage(i);
+  pdfDoc = await pdfjsLib.getDocument({data:buf}).promise;
+  renderPDF();
 };
 
-async function renderPage(n) {
-  const page = await pdfDoc.getPage(n);
-  const scale = 1.5;
-  const vp = page.getViewport({ scale });
+async function renderPDF() {
+  editor.innerHTML = thumbnails.innerHTML = "";
+  for (let i=1;i<=pdfDoc.numPages;i++) {
+    const page = await pdfDoc.getPage(i);
+    const vp = page.getViewport({scale:1.5});
 
-  const div = document.createElement('div');
-  div.className = 'page';
-  div.style.width = vp.width + 'px';
-  div.style.height = vp.height + 'px';
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = vp.width;
-  canvas.height = vp.height;
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-  div.appendChild(canvas);
+    const div = document.createElement("div");
+    div.className="page";
+    div.appendChild(canvas);
 
-  const layer = document.createElement('div');
-  layer.style.position = 'absolute';
-  layer.style.inset = 0;
-  div.appendChild(layer);
+    const textLayer = document.createElement("div");
+    div.appendChild(textLayer);
 
-  const tc = await page.getTextContent();
-  tc.items.forEach(t => {
-    const size = Math.sqrt(t.transform[0] ** 2 + t.transform[1] ** 2) * scale;
-    const el = document.createElement('div');
-    el.className = 'text-box';
-    el.textContent = t.str;
-    el.style.left = t.transform[4] * scale + 'px';
-    el.style.top = (vp.height - t.transform[5] * scale - size) + 'px';
-    el.style.fontSize = size + 'px';
-    el.style.width = t.width * scale + 'px';
-    el.style.height = size + 'px';
+    await pdfjsLib.renderTextLayer({
+      textContent: await page.getTextContent(),
+      container: textLayer,
+      viewport: vp
+    }).promise;
 
-    el.ondblclick = () => edit(el, n);
-    layer.appendChild(el);
-  });
+    textLayer.onclick = e => selectText(e,i,vp);
+    editor.appendChild(div);
 
-  pages.appendChild(div);
+    const thumb = document.createElement("img");
+    thumb.src = canvas.toDataURL();
+    thumb.onclick = () => div.scrollIntoView();
+    thumbnails.appendChild(thumb);
+  }
 }
 
-function edit(el, page) {
-  const ed = document.createElement('textarea');
-  ed.className = 'editor';
-  ed.value = el.textContent;
-  ed.style.cssText = el.style.cssText;
-  el.parentNode.appendChild(ed);
-  el.style.visibility = 'hidden';
-  ed.focus();
+function selectText(e,page,vp){
+  const span = e.target.closest("span");
+  if(!span) return;
 
-  let dragging = false, ox, oy;
-  ed.onmousedown = e => {
-    dragging = true;
-    ox = e.offsetX; oy = e.offsetY;
-  };
-  window.onmousemove = e => {
-    if (!dragging) return;
-    ed.style.left = e.pageX - ox + 'px';
-    ed.style.top = e.pageY - oy + 'px';
-  };
-  window.onmouseup = () => dragging = false;
+  const r = span.getBoundingClientRect();
+  const ta = document.createElement("textarea");
+  ta.className="editor-box";
+  ta.value = span.innerText;
+  ta.style.left = r.left+"px";
+  ta.style.top = r.top+"px";
+  ta.style.width = r.width+"px";
+  ta.style.height = r.height+"px";
+  ta.style.fontSize = currentStyle.size+"px";
+  ta.style.color = currentStyle.color;
+  ta.style.fontWeight = currentStyle.bold?"bold":"normal";
 
-  ed.onblur = () => {
-    edits.push({
-      page,
-      text: ed.value,
-      x: parseFloat(ed.style.left),
-      y: parseFloat(ed.style.top),
-      size: parseFloat(ed.style.fontSize),
-      w: parseFloat(ed.style.width),
-      h: parseFloat(ed.style.height)
-    });
-    ed.remove();
+  document.body.appendChild(ta);
+  ta.focus();
+
+  span.style.visibility="hidden";
+
+  ta.onblur = () => {
+    edits.push({text:ta.value,page,x:r.left,y:r.top,style:{...currentStyle}});
+    span.style.visibility="visible";
+    ta.remove();
   };
 }
 
-download.onclick = async () => {
-  const file = document.getElementById('file').files[0];
-  const pdf = await PDFLib.PDFDocument.load(await file.arrayBuffer());
+document.getElementById("downloadBtn").onclick = async () => {
+  const bytes = await fileInput.files[0].arrayBuffer();
+  const pdf = await PDFLib.PDFDocument.load(bytes);
+  const pages = pdf.getPages();
 
-  edits.forEach(e => {
-    const p = pdf.getPages()[e.page - 1];
-    const h = p.getSize().height;
-
-    p.drawRectangle({
-      x: e.x,
-      y: h - e.y - e.h,
-      width: e.w,
-      height: e.h,
-      color: PDFLib.rgb(1,1,1)
-    });
-
-    p.drawText(e.text, {
-      x: e.x,
-      y: h - e.y - e.h + 2,
-      size: e.size,
-      color: PDFLib.rgb(0,0,0)
+  edits.forEach(e=>{
+    pages[e.page-1].drawText(e.text,{
+      x:e.x/1.5,
+      y:pages[e.page-1].getHeight()-e.y/1.5,
+      size:e.style.size,
+      color:PDFLib.rgb(
+        parseInt(e.style.color.slice(1,3),16)/255,
+        parseInt(e.style.color.slice(3,5),16)/255,
+        parseInt(e.style.color.slice(5,7),16)/255
+      )
     });
   });
 
   const out = await pdf.save();
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([out]));
-  a.download = 'edited.pdf';
+  a.download = "edited.pdf";
   a.click();
 };
 </script>
