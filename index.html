@@ -96,4 +96,171 @@ button:hover {
 }
 
 .text-hit:hover {
-  outline: 1px d
+  outline: 1px dashed #2563eb;
+}
+
+.text-editor {
+  position: absolute;
+  border: 1px solid #2563eb;
+  background: rgba(255,255,255,0.95);
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>MKB PDF Editor</h1>
+</header>
+
+<div class="toolbar">
+  <input type="file" id="fileInput" accept="application/pdf">
+  <button class="primary" id="downloadBtn">Download PDF</button>
+</div>
+
+<div id="viewer">
+  <div id="thumbnails"></div>
+  <div id="pages"></div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfDoc = null;
+let edits = [];
+
+document.getElementById('fileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const arrayBuffer = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  document.getElementById('pages').innerHTML = '';
+  document.getElementById('thumbnails').innerHTML = '';
+  edits = [];
+
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    await renderPage(i);
+  }
+});
+
+async function renderPage(pageNum) {
+  const page = await pdfDoc.getPage(pageNum);
+  const scale = 1.5;
+  const viewport = page.getViewport({ scale });
+
+  const pageDiv = document.createElement('div');
+  pageDiv.className = 'page';
+  pageDiv.style.width = viewport.width + 'px';
+  pageDiv.style.height = viewport.height + 'px';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  pageDiv.appendChild(canvas);
+
+  const textLayer = document.createElement('div');
+  textLayer.style.position = 'absolute';
+  textLayer.style.top = 0;
+  textLayer.style.left = 0;
+  textLayer.style.width = '100%';
+  textLayer.style.height = '100%';
+  pageDiv.appendChild(textLayer);
+
+  const textContent = await page.getTextContent();
+
+  textContent.items.forEach(item => {
+    const [a, b, c, d, x, y] = item.transform;
+    const fontSize = Math.sqrt(a * a + b * b) * scale;
+
+    const div = document.createElement('div');
+    div.className = 'text-hit';
+    div.textContent = item.str;
+    div.style.left = x * scale + 'px';
+    div.style.top = (viewport.height - y * scale - fontSize) + 'px';
+    div.style.fontSize = fontSize + 'px';
+    div.style.width = item.width * scale + 'px';
+    div.style.height = fontSize + 'px';
+
+    div.addEventListener('dblclick', () => editText(div, pageNum));
+    textLayer.appendChild(div);
+  });
+
+  document.getElementById('pages').appendChild(pageDiv);
+}
+
+function editText(div, pageNum) {
+  const rect = div.getBoundingClientRect();
+  const editor = document.createElement('textarea');
+  editor.className = 'text-editor';
+  editor.value = div.textContent;
+  editor.style.left = div.style.left;
+  editor.style.top = div.style.top;
+  editor.style.width = div.style.width;
+  editor.style.height = div.style.height;
+  editor.style.fontSize = div.style.fontSize;
+
+  div.parentElement.appendChild(editor);
+  div.style.visibility = 'hidden';
+  editor.focus();
+
+  editor.onblur = () => {
+    edits.push({
+      page: pageNum,
+      text: editor.value,
+      x: parseFloat(editor.style.left),
+      y: parseFloat(editor.style.top),
+      size: parseFloat(editor.style.fontSize),
+      width: parseFloat(editor.style.width),
+      height: parseFloat(editor.style.height)
+    });
+    editor.remove();
+  };
+}
+
+document.getElementById('downloadBtn').addEventListener('click', async () => {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) return;
+
+  const pdfBytes = await file.arrayBuffer();
+  const pdf = await PDFLib.PDFDocument.load(pdfBytes);
+
+  edits.forEach(e => {
+    const page = pdf.getPages()[e.page - 1];
+    const { height } = page.getSize();
+
+    page.drawRectangle({
+      x: e.x,
+      y: height - e.y - e.height,
+      width: e.width,
+      height: e.height,
+      color: PDFLib.rgb(1,1,1)
+    });
+
+    page.drawText(e.text, {
+      x: e.x,
+      y: height - e.y - e.height + 2,
+      size: e.size,
+      color: PDFLib.rgb(0,0,0)
+    });
+  });
+
+  const out = await pdf.save();
+  const blob = new Blob([out], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'edited.pdf';
+  a.click();
+});
+</script>
+
+</body>
+</html>
