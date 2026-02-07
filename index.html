@@ -1,324 +1,242 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>MKB PDF Editor</title>
+  <meta charset="UTF-8" />
+  <title>ElitePDF — Premium Online PDF Editor</title>
 
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- PDF-lib -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 
-<style>
-body {
-  margin: 0;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f4f6f8;
-  color: #111;
-}
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #111827;
+      --card: #0f172a;
+      --accent: #6366f1;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+    }
 
-header {
-  background: #ffffff;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
+    * {
+      box-sizing: border-box;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
 
-header h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-}
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #020617, #020617);
+      color: var(--text);
+    }
 
-.controls {
-  display: flex;
-  gap: 12px;
-  padding: 16px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-}
+    header {
+      padding: 20px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-button, input[type="file"] {
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  cursor: pointer;
-}
+    header h1 {
+      font-size: 18px;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
 
-button.primary {
-  background: #2563eb;
-  color: #fff;
-  border: none;
-}
+    .controls {
+      display: flex;
+      gap: 12px;
+    }
 
-button:hover {
-  opacity: 0.9;
-}
+    button, input[type="file"]::file-selector-button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+    }
 
-#status {
-  padding: 10px 24px;
-  font-size: 14px;
-  color: #374151;
-}
+    button.secondary {
+      background: #1f2937;
+      color: var(--text);
+    }
 
-#pdf-container {
-  position: relative;
-  margin: 24px auto;
-  width: fit-content;
-  background: #fff;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
-}
+    main {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
 
-canvas {
-  display: block;
-}
+    #status {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--muted);
+    }
 
-.text-box {
-  position: absolute;
-  min-width: 60px;
-  min-height: 24px;
-  padding: 4px;
-  cursor: move;
-  outline: none;
-}
+    #pdfContainer {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
 
-.text-box.selected {
-  border: 1px dashed #2563eb;
-}
+    .page {
+      position: relative;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
 
-.resize-handle {
-  width: 10px;
-  height: 10px;
-  background: #2563eb;
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  cursor: se-resize;
-}
+    canvas {
+      display: block;
+      width: 100%;
+    }
 
-.toolbar {
-  position: absolute;
-  background: #ffffff;
-  border-radius: 10px;
-  padding: 8px;
-  display: flex;
-  gap: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-  z-index: 1000;
-}
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+    }
 
-.toolbar.hidden {
-  display: none;
-}
+    .text-box {
+      position: absolute;
+      min-width: 50px;
+      min-height: 20px;
+      padding: 2px 4px;
+      font-size: 16px;
+      color: black;
+      outline: 1px dashed #6366f1;
+      background: transparent;
+    }
 
-.toolbar button {
-  padding: 6px 10px;
-}
-
-.image-box img {
-  max-width: 200px;
-  cursor: move;
-}
-</style>
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-size: 14px;
+    }
+  </style>
 </head>
 
 <body>
 
 <header>
-  <h1>MKB PDF Editor</h1>
+  <h1>ElitePDF</h1>
+  <div class="controls">
+    <input type="file" id="upload" accept="application/pdf" />
+    <button class="secondary" onclick="downloadPDF()">Download</button>
+  </div>
 </header>
 
-<div class="controls">
-  <input type="file" id="upload" accept="application/pdf" />
-  <button id="addText">Add Text</button>
-  <button id="addImage">Add Image</button>
-  <button class="primary" id="download">Download PDF</button>
-</div>
+<main>
+  <div id="status">Upload a PDF to start editing</div>
+  <div id="pdfContainer"></div>
+</main>
 
-<div id="status">Upload a PDF to begin</div>
-
-<div id="pdf-container"></div>
-
-<!-- Toolbar -->
-<div id="toolbar" class="toolbar hidden">
-  <select id="fontFamily">
-    <option value="Helvetica">Helvetica</option>
-    <option value="Times-Roman">Times</option>
-    <option value="Courier">Courier</option>
-  </select>
-  <input type="number" id="fontSize" value="14" min="8" max="72" />
-  <input type="color" id="fontColor" value="#000000" />
-  <button id="bold">B</button>
-  <button id="italic">I</button>
-  <button id="delete">🗑</button>
+<div class="footer">
+  Secure • Private • No Uploads Stored • Designed for Professionals
 </div>
 
 <script>
-const upload = document.getElementById("upload");
-const pdfContainer = document.getElementById("pdf-container");
-const statusEl = document.getElementById("status");
-const toolbar = document.getElementById("toolbar");
+  const pdfContainer = document.getElementById("pdfContainer");
+  const statusEl = document.getElementById("status");
+  let originalPdfBytes;
+  let pagesData = [];
 
-let pdfDoc, page, scale = 1.5;
-let overlays = [];
-let selected = null;
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-// Load PDF
-upload.onchange = async () => {
-  const file = upload.files[0];
-  if (!file) return;
+  document.getElementById("upload").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  statusEl.textContent = "Loading PDF…";
+    statusEl.textContent = "Loading PDF...";
+    originalPdfBytes = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
 
-  const data = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
-  pdfDoc = pdf;
-  page = await pdf.getPage(1);
+    pdfContainer.innerHTML = "";
+    pagesData = [];
 
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
 
-  await page.render({ canvasContext: ctx, viewport }).promise;
+      const pageDiv = document.createElement("div");
+      pageDiv.className = "page";
 
-  pdfContainer.innerHTML = "";
-  pdfContainer.appendChild(canvas);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-  statusEl.textContent = "Click Add Text or Add Image";
-};
+      const overlay = document.createElement("div");
+      overlay.className = "overlay";
 
-// Create draggable element
-function makeDraggable(el) {
-  let offsetX, offsetY, dragging = false;
+      overlay.addEventListener("dblclick", (e) => {
+        const box = document.createElement("div");
+        box.contentEditable = true;
+        box.className = "text-box";
+        box.style.left = e.offsetX + "px";
+        box.style.top = e.offsetY + "px";
+        overlay.appendChild(box);
 
-  el.onmousedown = e => {
-    dragging = true;
-    offsetX = e.offsetX;
-    offsetY = e.offsetY;
-    select(el);
-  };
-
-  document.onmousemove = e => {
-    if (!dragging) return;
-    el.style.left = e.pageX - pdfContainer.offsetLeft - offsetX + "px";
-    el.style.top = e.pageY - pdfContainer.offsetTop - offsetY + "px";
-    positionToolbar();
-  };
-
-  document.onmouseup = () => dragging = false;
-}
-
-// Text
-document.getElementById("addText").onclick = () => {
-  const box = document.createElement("div");
-  box.className = "text-box";
-  box.contentEditable = true;
-  box.innerText = "Edit text";
-  box.style.left = "50px";
-  box.style.top = "50px";
-  box.style.fontSize = "14px";
-  box.style.fontFamily = "Helvetica";
-
-  const handle = document.createElement("div");
-  handle.className = "resize-handle";
-  box.appendChild(handle);
-
-  makeDraggable(box);
-  pdfContainer.appendChild(box);
-  overlays.push(box);
-  select(box);
-
-  handle.onmousedown = e => {
-    e.stopPropagation();
-    document.onmousemove = ev => {
-      box.style.width = ev.pageX - box.offsetLeft + "px";
-      box.style.height = ev.pageY - box.offsetTop + "px";
-    };
-    document.onmouseup = () => document.onmousemove = null;
-  };
-};
-
-// Image
-document.getElementById("addImage").onclick = () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = () => {
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(input.files[0]);
-
-    const wrap = document.createElement("div");
-    wrap.className = "image-box";
-    wrap.style.position = "absolute";
-    wrap.style.left = "60px";
-    wrap.style.top = "60px";
-    wrap.appendChild(img);
-
-    makeDraggable(wrap);
-    pdfContainer.appendChild(wrap);
-    overlays.push(wrap);
-    select(wrap);
-  };
-  input.click();
-};
-
-// Toolbar logic
-function select(el) {
-  document.querySelectorAll(".text-box,.image-box").forEach(e => e.classList.remove("selected"));
-  selected = el;
-  el.classList.add("selected");
-  toolbar.classList.remove("hidden");
-  positionToolbar();
-}
-
-function positionToolbar() {
-  if (!selected) return;
-  toolbar.style.left = selected.offsetLeft + "px";
-  toolbar.style.top = selected.offsetTop - 50 + "px";
-}
-
-document.getElementById("delete").onclick = () => {
-  if (!selected) return;
-  selected.remove();
-  toolbar.classList.add("hidden");
-};
-
-document.getElementById("fontSize").oninput = e => selected && (selected.style.fontSize = e.target.value + "px");
-document.getElementById("fontFamily").onchange = e => selected && (selected.style.fontFamily = e.target.value);
-document.getElementById("fontColor").oninput = e => selected && (selected.style.color = e.target.value);
-document.getElementById("bold").onclick = () => selected && (selected.style.fontWeight = selected.style.fontWeight === "bold" ? "normal" : "bold");
-document.getElementById("italic").onclick = () => selected && (selected.style.fontStyle = selected.style.fontStyle === "italic" ? "normal" : "italic");
-
-// Download
-document.getElementById("download").onclick = async () => {
-  statusEl.textContent = "Preparing PDF…";
-
-  const existingPdfBytes = await upload.files[0].arrayBuffer();
-  const pdfDocLib = await PDFLib.PDFDocument.load(existingPdfBytes);
-  const page = pdfDocLib.getPages()[0];
-
-  overlays.forEach(el => {
-    if (el.classList.contains("text-box")) {
-      page.drawText(el.innerText, {
-        x: el.offsetLeft,
-        y: page.getHeight() - el.offsetTop - 20,
-        size: parseInt(el.style.fontSize) || 14,
-        font: pdfDocLib.embedStandardFont(PDFLib.StandardFonts.Helvetica)
+        pagesData[i - 1].texts.push(box);
+        box.focus();
       });
+
+      pageDiv.appendChild(canvas);
+      pageDiv.appendChild(overlay);
+      pdfContainer.appendChild(pageDiv);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      pagesData.push({ overlay, texts: [] });
     }
+
+    statusEl.textContent = `Loaded ${pdf.numPages} pages. Double-click anywhere to edit.`;
   });
 
-  const pdfBytes = await pdfDocLib.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "edited.pdf";
-  a.click();
+  async function downloadPDF() {
+    if (!originalPdfBytes) return;
 
-  statusEl.textContent = "PDF downloaded successfully";
-};
+    statusEl.textContent = "Preparing download...";
+    const pdfDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+    const pages = pdfDoc.getPages();
+
+    pagesData.forEach((pageData, index) => {
+      const pdfPage = pages[index];
+      const { height } = pdfPage.getSize();
+
+      pageData.texts.forEach(box => {
+        const x = parseFloat(box.style.left);
+        const y = height - parseFloat(box.style.top) - 18;
+        const text = box.innerText;
+
+        pdfPage.drawText(text, {
+          x,
+          y,
+          size: 14,
+          color: PDFLib.rgb(0, 0, 0)
+        });
+      });
+    });
+
+    const bytes = await pdfDoc.save();
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "edited.pdf";
+    link.click();
+
+    statusEl.textContent = "PDF downloaded successfully.";
+  }
 </script>
 
 </body>
