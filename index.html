@@ -1,253 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>ElitePDF Editor</title>
+<meta charset="UTF-8" />
+<title>MKB PDF Editor</title>
 
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<!-- PDF-lib -->
+<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
 <style>
 body {
-  margin:0;
-  background:#020617;
-  color:#e5e7eb;
-  font-family:Inter,system-ui,sans-serif;
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
+  background: #0b1020;
+  color: #e5e7eb;
 }
 
 header {
-  display:flex;
-  gap:10px;
-  padding:14px;
-  border-bottom:1px solid #1f2937;
-  background:#020617;
-  position:sticky;
-  top:0;
-  z-index:10;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #020617, #020617);
+  border-bottom: 1px solid #1f2933;
 }
 
-button, select {
-  background:#111827;
-  color:white;
-  border:1px solid #1f2937;
-  padding:8px 12px;
-  border-radius:8px;
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  padding: 12px 24px;
+  background: #020617;
+  border-bottom: 1px solid #1f2933;
+}
+
+button, input[type=file] {
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
 }
 
 button.primary {
-  background:#6366f1;
-  border:none;
+  background: #2563eb;
+  border: none;
 }
 
-main {
-  display:flex;
-  height:calc(100vh - 60px);
+button:hover {
+  opacity: 0.9;
 }
 
-#sidebar {
-  width:140px;
-  border-right:1px solid #1f2937;
-  overflow-y:auto;
+#viewer {
+  display: flex;
+}
+
+#thumbnails {
+  width: 120px;
+  background: #020617;
+  border-right: 1px solid #1f2933;
+  padding: 8px;
+  overflow-y: auto;
 }
 
 .thumb {
-  padding:6px;
-  cursor:pointer;
-}
-.thumb canvas {
-  width:100%;
-  border-radius:4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
 }
 
-#editor {
-  flex:1;
-  padding:30px;
-  overflow-y:auto;
+.thumb.active {
+  border-color: #2563eb;
+}
+
+#pages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
 }
 
 .page {
-  position:relative;
-  margin-bottom:40px;
-  background:white;
-  border-radius:6px;
-  box-shadow:0 20px 40px rgba(0,0,0,.4);
+  position: relative;
+  margin-bottom: 24px;
+  background: white;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
 }
 
-canvas { display:block; width:100%; }
-
-.overlay {
-  position:absolute;
-  inset:0;
+.text-hit {
+  position: absolute;
+  cursor: text;
 }
 
-.text-box {
-  position:absolute;
-  min-width:160px;
-  min-height:36px;
-  padding:6px 8px;
-  background:rgba(255,255,255,0.95);
-  border:1px solid #6366f1;
-  border-radius:4px;
-  font-size:14px;
-  line-height:1.4;
-  cursor:move;
-}
-
-.text-box.editing {
-  outline:2px solid #6366f1;
-}
-
-.text-content {
-  white-space:pre-wrap;
-  word-break:break-word;
-}
-
-.hidden {
-  display:none;
-}
-</style>
-</head>
-
-<body>
-
-<header>
-  <input type="file" id="upload" accept="application/pdf">
-  <button class="primary" onclick="downloadPDF()">Download</button>
-
-  <select id="fontSize">
-    <option>12</option><option>14</option><option selected>16</option>
-    <option>18</option><option>24</option>
-  </select>
-</header>
-
-<main>
-  <div id="sidebar"></div>
-  <div id="editor"></div>
-</main>
-
-<script>
-let pdfBytes;
-let pagesData=[];
-
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-upload.onchange = async e => {
-  const file = e.target.files[0];
-  pdfBytes = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data:pdfBytes}).promise;
-
-  editor.innerHTML="";
-  sidebar.innerHTML="";
-  pagesData=[];
-
-  for(let i=1;i<=pdf.numPages;i++){
-    const page = await pdf.getPage(i);
-    const vp = page.getViewport({scale:1.4});
-
-    const pageDiv=document.createElement("div");
-    pageDiv.className="page";
-
-    const canvas=document.createElement("canvas");
-    canvas.width=vp.width;
-    canvas.height=vp.height;
-    await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
-
-    const overlay=document.createElement("div");
-    overlay.className="overlay";
-
-    overlay.ondblclick = e=>{
-      createTextBox(overlay,e.offsetX,e.offsetY);
-    };
-
-    pageDiv.append(canvas,overlay);
-    editor.appendChild(pageDiv);
-    pagesData.push({overlay});
-
-    const t=document.createElement("canvas");
-    t.width=vp.width/6; t.height=vp.height/6;
-    t.getContext("2d").drawImage(canvas,0,0,t.width,t.height);
-    const thumb=document.createElement("div");
-    thumb.className="thumb";
-    thumb.appendChild(t);
-    thumb.onclick=()=>pageDiv.scrollIntoView({behavior:"smooth"});
-    sidebar.appendChild(thumb);
-  }
-};
-
-function createTextBox(container,x,y){
-  const box=document.createElement("div");
-  box.className="text-box";
-  box.style.left=x+"px";
-  box.style.top=y+"px";
-
-  const content=document.createElement("div");
-  content.className="text-content";
-  content.innerText="Double-click to edit";
-
-  box.appendChild(content);
-  container.appendChild(box);
-
-  box.ondblclick=()=>{
-    box.classList.add("editing");
-    const ta=document.createElement("textarea");
-    ta.value=content.innerText;
-    ta.style.width="100%";
-    ta.style.height="100%";
-    ta.style.border="none";
-    ta.style.outline="none";
-    ta.style.resize="none";
-    ta.style.fontSize=fontSize.value+"px";
-
-    box.innerHTML="";
-    box.appendChild(ta);
-    ta.focus();
-
-    ta.onblur=()=>{
-      content.innerText=ta.value || " ";
-      box.innerHTML="";
-      box.appendChild(content);
-      box.classList.remove("editing");
-    };
-  };
-
-  let ox,oy,drag=false;
-  box.onmousedown=e=>{drag=true;ox=e.offsetX;oy=e.offsetY};
-  document.onmousemove=e=>{
-    if(drag){
-      box.style.left=(e.pageX-container.offsetLeft-ox)+"px";
-      box.style.top=(e.pageY-container.offsetTop-oy)+"px";
-    }
-  };
-  document.onmouseup=()=>drag=false;
-}
-
-async function downloadPDF(){
-  const doc=await PDFLib.PDFDocument.load(pdfBytes);
-  const pages=doc.getPages();
-
-  pagesData.forEach((p,i)=>{
-    const page=pages[i];
-    const {height}=page.getSize();
-    p.overlay.querySelectorAll(".text-box").forEach(b=>{
-      const text=b.innerText.trim();
-      if(!text) return;
-      page.drawText(text,{
-        x:parseFloat(b.style.left),
-        y:height-parseFloat(b.style.top)-20,
-        size:parseInt(fontSize.value),
-        color:PDFLib.rgb(0,0,0)
-      });
-    });
-  });
-
-  const out=await doc.save();
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([out],{type:"application/pdf"}));
-  a.download="edited.pdf";
-  a.click();
-}
-</script>
-
-</body>
-</html>
+.text-hit:hover {
+  outline: 1px d
