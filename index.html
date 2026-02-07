@@ -2,60 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ElitePDF — Professional PDF Editor</title>
+<title>ElitePDF Editor</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 
 <style>
-:root {
-  --bg:#020617;
-  --panel:#0f172a;
-  --card:#020617;
-  --accent:#6366f1;
-  --text:#e5e7eb;
-  --muted:#9ca3af;
-  --border:#1f2937;
-}
-
-* { box-sizing:border-box; font-family:Inter,system-ui,sans-serif }
-
 body {
   margin:0;
-  background:var(--bg);
-  color:var(--text);
+  background:#020617;
+  color:#e5e7eb;
+  font-family:Inter,system-ui,sans-serif;
 }
 
 header {
   display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:14px 20px;
-  border-bottom:1px solid var(--border);
+  gap:10px;
+  padding:14px;
+  border-bottom:1px solid #1f2937;
+  background:#020617;
   position:sticky;
   top:0;
-  background:rgba(2,6,23,.95);
-  z-index:100;
+  z-index:10;
 }
 
-.controls, .toolbar {
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-
-button, select, input[type="color"] {
+button, select {
   background:#111827;
-  color:var(--text);
-  border:1px solid var(--border);
-  padding:8px 10px;
+  color:white;
+  border:1px solid #1f2937;
+  padding:8px 12px;
   border-radius:8px;
 }
 
 button.primary {
-  background:var(--accent);
+  background:#6366f1;
   border:none;
-  color:white;
 }
 
 main {
@@ -65,17 +46,14 @@ main {
 
 #sidebar {
   width:140px;
-  border-right:1px solid var(--border);
+  border-right:1px solid #1f2937;
   overflow-y:auto;
-  background:#020617;
 }
 
 .thumb {
-  padding:8px;
+  padding:6px;
   cursor:pointer;
 }
-.thumb.active { background:#111827 }
-
 .thumb canvas {
   width:100%;
   border-radius:4px;
@@ -83,8 +61,8 @@ main {
 
 #editor {
   flex:1;
-  overflow-y:auto;
   padding:30px;
+  overflow-y:auto;
 }
 
 .page {
@@ -92,10 +70,10 @@ main {
   margin-bottom:40px;
   background:white;
   border-radius:6px;
-  box-shadow:0 20px 40px rgba(0,0,0,.5);
+  box-shadow:0 20px 40px rgba(0,0,0,.4);
 }
 
-canvas { width:100%; display:block }
+canvas { display:block; width:100%; }
 
 .overlay {
   position:absolute;
@@ -104,29 +82,28 @@ canvas { width:100%; display:block }
 
 .text-box {
   position:absolute;
-  min-width:40px;
-  min-height:20px;
-  padding:2px 4px;
+  min-width:160px;
+  min-height:36px;
+  padding:6px 8px;
+  background:rgba(255,255,255,0.95);
+  border:1px solid #6366f1;
+  border-radius:4px;
+  font-size:14px;
+  line-height:1.4;
   cursor:move;
-  outline:1px dashed transparent;
 }
 
-.text-box.selected { outline:1px dashed var(--accent) }
-
-.resizer {
-  position:absolute;
-  right:-6px;
-  bottom:-6px;
-  width:12px;
-  height:12px;
-  background:var(--accent);
-  cursor:se-resize;
+.text-box.editing {
+  outline:2px solid #6366f1;
 }
 
-footer {
-  text-align:center;
-  padding:20px;
-  color:var(--muted);
+.text-content {
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.hidden {
+  display:none;
 }
 </style>
 </head>
@@ -134,27 +111,13 @@ footer {
 <body>
 
 <header>
-  <div class="controls">
-    <input type="file" id="upload" accept="application/pdf">
-    <button onclick="downloadPDF()">Download</button>
-  </div>
+  <input type="file" id="upload" accept="application/pdf">
+  <button class="primary" onclick="downloadPDF()">Download</button>
 
-  <div class="toolbar">
-    <select id="fontFamily">
-      <option>Helvetica</option>
-      <option>Times-Roman</option>
-      <option>Courier</option>
-    </select>
-
-    <select id="fontSize">
-      <option>12</option><option>14</option><option>16</option>
-      <option>18</option><option>24</option><option>32</option>
-    </select>
-
-    <input type="color" id="fontColor" value="#000000">
-    <button onclick="zoom(1.1)">+</button>
-    <button onclick="zoom(0.9)">−</button>
-  </div>
+  <select id="fontSize">
+    <option>12</option><option>14</option><option selected>16</option>
+    <option>18</option><option>24</option>
+  </select>
 </header>
 
 <main>
@@ -162,22 +125,14 @@ footer {
   <div id="editor"></div>
 </main>
 
-<footer>Private • Secure • No Files Stored</footer>
-
 <script>
-let pdfBytes, scale=1.4, pagesData=[], selectedBox=null;
+let pdfBytes;
+let pagesData=[];
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
 "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-document.addEventListener("keydown", e=>{
-  if(e.key==="Delete" && selectedBox){
-    selectedBox.remove();
-    selectedBox=null;
-  }
-});
-
-document.getElementById("upload").onchange = async e => {
+upload.onchange = async e => {
   const file = e.target.files[0];
   pdfBytes = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data:pdfBytes}).promise;
@@ -188,7 +143,7 @@ document.getElementById("upload").onchange = async e => {
 
   for(let i=1;i<=pdf.numPages;i++){
     const page = await pdf.getPage(i);
-    const vp = page.getViewport({scale});
+    const vp = page.getViewport({scale:1.4});
 
     const pageDiv=document.createElement("div");
     pageDiv.className="page";
@@ -196,87 +151,75 @@ document.getElementById("upload").onchange = async e => {
     const canvas=document.createElement("canvas");
     canvas.width=vp.width;
     canvas.height=vp.height;
-
-    const ctx=canvas.getContext("2d");
-    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
 
     const overlay=document.createElement("div");
     overlay.className="overlay";
 
-    overlay.onclick = e=>{
-      const box=document.createElement("div");
-      box.contentEditable=true;
-      box.className="text-box selected";
-      box.style.left=e.offsetX+"px";
-      box.style.top=e.offsetY+"px";
-      applyStyles(box);
-      makeInteractive(box);
-      overlay.appendChild(box);
-      selectBox(box);
+    overlay.ondblclick = e=>{
+      createTextBox(overlay,e.offsetX,e.offsetY);
     };
 
     pageDiv.append(canvas,overlay);
     editor.appendChild(pageDiv);
-    pagesData.push({overlay,canvas});
+    pagesData.push({overlay});
 
-    const tcanvas=document.createElement("canvas");
-    tcanvas.width=vp.width/6;
-    tcanvas.height=vp.height/6;
-    tcanvas.getContext("2d").drawImage(canvas,0,0,tcanvas.width,tcanvas.height);
-
+    const t=document.createElement("canvas");
+    t.width=vp.width/6; t.height=vp.height/6;
+    t.getContext("2d").drawImage(canvas,0,0,t.width,t.height);
     const thumb=document.createElement("div");
     thumb.className="thumb";
-    thumb.appendChild(tcanvas);
+    thumb.appendChild(t);
     thumb.onclick=()=>pageDiv.scrollIntoView({behavior:"smooth"});
     sidebar.appendChild(thumb);
   }
 };
 
-function makeInteractive(box){
+function createTextBox(container,x,y){
+  const box=document.createElement("div");
+  box.className="text-box";
+  box.style.left=x+"px";
+  box.style.top=y+"px";
+
+  const content=document.createElement("div");
+  content.className="text-content";
+  content.innerText="Double-click to edit";
+
+  box.appendChild(content);
+  container.appendChild(box);
+
+  box.ondblclick=()=>{
+    box.classList.add("editing");
+    const ta=document.createElement("textarea");
+    ta.value=content.innerText;
+    ta.style.width="100%";
+    ta.style.height="100%";
+    ta.style.border="none";
+    ta.style.outline="none";
+    ta.style.resize="none";
+    ta.style.fontSize=fontSize.value+"px";
+
+    box.innerHTML="";
+    box.appendChild(ta);
+    ta.focus();
+
+    ta.onblur=()=>{
+      content.innerText=ta.value || " ";
+      box.innerHTML="";
+      box.appendChild(content);
+      box.classList.remove("editing");
+    };
+  };
+
   let ox,oy,drag=false;
-  box.onmousedown=e=>{drag=true;ox=e.offsetX;oy=e.offsetY;selectBox(box)};
+  box.onmousedown=e=>{drag=true;ox=e.offsetX;oy=e.offsetY};
   document.onmousemove=e=>{
     if(drag){
-      box.style.left=(e.pageX-box.parentElement.offsetLeft-ox)+"px";
-      box.style.top=(e.pageY-box.parentElement.offsetTop-oy)+"px";
+      box.style.left=(e.pageX-container.offsetLeft-ox)+"px";
+      box.style.top=(e.pageY-container.offsetTop-oy)+"px";
     }
   };
   document.onmouseup=()=>drag=false;
-
-  const r=document.createElement("div");
-  r.className="resizer";
-  box.appendChild(r);
-
-  r.onmousedown=e=>{
-    e.stopPropagation();
-    let w=box.offsetWidth,h=box.offsetHeight;
-    document.onmousemove=m=>{
-      box.style.width=w+(m.pageX-e.pageX)+"px";
-      box.style.height=h+(m.pageY-e.pageY)+"px";
-    };
-    document.onmouseup=()=>document.onmousemove=null;
-  };
-}
-
-function selectBox(box){
-  document.querySelectorAll(".text-box").forEach(b=>b.classList.remove("selected"));
-  box.classList.add("selected");
-  selectedBox=box;
-}
-
-function applyStyles(box){
-  box.style.fontFamily=fontFamily.value;
-  box.style.fontSize=fontSize.value+"px";
-  box.style.color=fontColor.value;
-}
-
-fontFamily.onchange=fontSize.onchange=fontColor.onchange=()=>{
-  if(selectedBox) applyStyles(selectedBox);
-};
-
-function zoom(f){
-  scale*=f;
-  upload.onchange({target:{files:[upload.files[0]]}});
 }
 
 async function downloadPDF(){
@@ -287,10 +230,12 @@ async function downloadPDF(){
     const page=pages[i];
     const {height}=page.getSize();
     p.overlay.querySelectorAll(".text-box").forEach(b=>{
-      page.drawText(b.innerText,{
+      const text=b.innerText.trim();
+      if(!text) return;
+      page.drawText(text,{
         x:parseFloat(b.style.left),
-        y:height-parseFloat(b.style.top)-16,
-        size:parseInt(b.style.fontSize),
+        y:height-parseFloat(b.style.top)-20,
+        size:parseInt(fontSize.value),
         color:PDFLib.rgb(0,0,0)
       });
     });
