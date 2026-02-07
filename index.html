@@ -1,128 +1,81 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
+<meta charset="utf-8">
 <title>MKB PDF Editor</title>
 
-<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- PDF-lib -->
 <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
 <style>
 body {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
-  background: #0b1020;
+  font-family: Inter, system-ui;
+  background: #0a0f1e;
   color: #e5e7eb;
 }
-
 header {
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #020617, #020617);
-  border-bottom: 1px solid #1f2933;
-}
-
-header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.toolbar {
-  display: flex;
-  gap: 12px;
-  padding: 12px 24px;
+  padding: 14px 22px;
   background: #020617;
   border-bottom: 1px solid #1f2933;
 }
-
-button, input[type=file] {
+.toolbar {
+  padding: 12px 22px;
+  display: flex;
+  gap: 10px;
+  background: #020617;
+}
+button, input {
   background: #111827;
-  color: #e5e7eb;
+  color: white;
   border: 1px solid #374151;
   border-radius: 8px;
   padding: 8px 14px;
-  cursor: pointer;
 }
-
 button.primary {
   background: #2563eb;
   border: none;
 }
-
-button:hover {
-  opacity: 0.9;
-}
-
 #viewer {
   display: flex;
 }
-
-#thumbnails {
-  width: 120px;
-  background: #020617;
-  border-right: 1px solid #1f2933;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-.thumb {
-  margin-bottom: 8px;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-
-.thumb.active {
-  border-color: #2563eb;
-}
-
 #pages {
-  flex: 1;
   padding: 20px;
-  overflow-y: auto;
+  flex: 1;
 }
-
 .page {
   position: relative;
-  margin-bottom: 24px;
   background: white;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  margin-bottom: 24px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4);
 }
-
-.text-hit {
+.text-box {
   position: absolute;
   cursor: text;
 }
-
-.text-hit:hover {
+.text-box:hover {
   outline: 1px dashed #2563eb;
 }
-
-.text-editor {
+.editor {
   position: absolute;
   border: 1px solid #2563eb;
-  background: rgba(255,255,255,0.95);
-  font-family: inherit;
-  resize: none;
+  resize: both;
   overflow: hidden;
+  background: rgba(255,255,255,.98);
 }
 </style>
 </head>
 
 <body>
 
-<header>
-  <h1>MKB PDF Editor</h1>
-</header>
+<header><b>MKB PDF Editor</b></header>
 
 <div class="toolbar">
-  <input type="file" id="fileInput" accept="application/pdf">
-  <button class="primary" id="downloadBtn">Download PDF</button>
+  <input type="file" id="file" accept="application/pdf">
+  <button class="primary" id="download">Download PDF</button>
 </div>
 
 <div id="viewer">
-  <div id="thumbnails"></div>
   <div id="pages"></div>
 </div>
 
@@ -130,136 +83,121 @@ button:hover {
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-let pdfDoc = null;
-let edits = [];
+let pdfDoc, edits = [];
 
-document.getElementById('fileInput').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const arrayBuffer = await file.arrayBuffer();
-  pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-  document.getElementById('pages').innerHTML = '';
-  document.getElementById('thumbnails').innerHTML = '';
+document.getElementById('file').onchange = async e => {
+  const buf = await e.target.files[0].arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  pages.innerHTML = '';
   edits = [];
+  for (let i = 1; i <= pdfDoc.numPages; i++) renderPage(i);
+};
 
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
-    await renderPage(i);
-  }
-});
-
-async function renderPage(pageNum) {
-  const page = await pdfDoc.getPage(pageNum);
+async function renderPage(n) {
+  const page = await pdfDoc.getPage(n);
   const scale = 1.5;
-  const viewport = page.getViewport({ scale });
+  const vp = page.getViewport({ scale });
 
-  const pageDiv = document.createElement('div');
-  pageDiv.className = 'page';
-  pageDiv.style.width = viewport.width + 'px';
-  pageDiv.style.height = viewport.height + 'px';
+  const div = document.createElement('div');
+  div.className = 'page';
+  div.style.width = vp.width + 'px';
+  div.style.height = vp.height + 'px';
 
   const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext('2d');
+  canvas.width = vp.width;
+  canvas.height = vp.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  div.appendChild(canvas);
 
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  pageDiv.appendChild(canvas);
+  const layer = document.createElement('div');
+  layer.style.position = 'absolute';
+  layer.style.inset = 0;
+  div.appendChild(layer);
 
-  const textLayer = document.createElement('div');
-  textLayer.style.position = 'absolute';
-  textLayer.style.top = 0;
-  textLayer.style.left = 0;
-  textLayer.style.width = '100%';
-  textLayer.style.height = '100%';
-  pageDiv.appendChild(textLayer);
+  const tc = await page.getTextContent();
+  tc.items.forEach(t => {
+    const size = Math.sqrt(t.transform[0] ** 2 + t.transform[1] ** 2) * scale;
+    const el = document.createElement('div');
+    el.className = 'text-box';
+    el.textContent = t.str;
+    el.style.left = t.transform[4] * scale + 'px';
+    el.style.top = (vp.height - t.transform[5] * scale - size) + 'px';
+    el.style.fontSize = size + 'px';
+    el.style.width = t.width * scale + 'px';
+    el.style.height = size + 'px';
 
-  const textContent = await page.getTextContent();
-
-  textContent.items.forEach(item => {
-    const [a, b, c, d, x, y] = item.transform;
-    const fontSize = Math.sqrt(a * a + b * b) * scale;
-
-    const div = document.createElement('div');
-    div.className = 'text-hit';
-    div.textContent = item.str;
-    div.style.left = x * scale + 'px';
-    div.style.top = (viewport.height - y * scale - fontSize) + 'px';
-    div.style.fontSize = fontSize + 'px';
-    div.style.width = item.width * scale + 'px';
-    div.style.height = fontSize + 'px';
-
-    div.addEventListener('dblclick', () => editText(div, pageNum));
-    textLayer.appendChild(div);
+    el.ondblclick = () => edit(el, n);
+    layer.appendChild(el);
   });
 
-  document.getElementById('pages').appendChild(pageDiv);
+  pages.appendChild(div);
 }
 
-function editText(div, pageNum) {
-  const rect = div.getBoundingClientRect();
-  const editor = document.createElement('textarea');
-  editor.className = 'text-editor';
-  editor.value = div.textContent;
-  editor.style.left = div.style.left;
-  editor.style.top = div.style.top;
-  editor.style.width = div.style.width;
-  editor.style.height = div.style.height;
-  editor.style.fontSize = div.style.fontSize;
+function edit(el, page) {
+  const ed = document.createElement('textarea');
+  ed.className = 'editor';
+  ed.value = el.textContent;
+  ed.style.cssText = el.style.cssText;
+  el.parentNode.appendChild(ed);
+  el.style.visibility = 'hidden';
+  ed.focus();
 
-  div.parentElement.appendChild(editor);
-  div.style.visibility = 'hidden';
-  editor.focus();
+  let dragging = false, ox, oy;
+  ed.onmousedown = e => {
+    dragging = true;
+    ox = e.offsetX; oy = e.offsetY;
+  };
+  window.onmousemove = e => {
+    if (!dragging) return;
+    ed.style.left = e.pageX - ox + 'px';
+    ed.style.top = e.pageY - oy + 'px';
+  };
+  window.onmouseup = () => dragging = false;
 
-  editor.onblur = () => {
+  ed.onblur = () => {
     edits.push({
-      page: pageNum,
-      text: editor.value,
-      x: parseFloat(editor.style.left),
-      y: parseFloat(editor.style.top),
-      size: parseFloat(editor.style.fontSize),
-      width: parseFloat(editor.style.width),
-      height: parseFloat(editor.style.height)
+      page,
+      text: ed.value,
+      x: parseFloat(ed.style.left),
+      y: parseFloat(ed.style.top),
+      size: parseFloat(ed.style.fontSize),
+      w: parseFloat(ed.style.width),
+      h: parseFloat(ed.style.height)
     });
-    editor.remove();
+    ed.remove();
   };
 }
 
-document.getElementById('downloadBtn').addEventListener('click', async () => {
-  const file = document.getElementById('fileInput').files[0];
-  if (!file) return;
-
-  const pdfBytes = await file.arrayBuffer();
-  const pdf = await PDFLib.PDFDocument.load(pdfBytes);
+download.onclick = async () => {
+  const file = document.getElementById('file').files[0];
+  const pdf = await PDFLib.PDFDocument.load(await file.arrayBuffer());
 
   edits.forEach(e => {
-    const page = pdf.getPages()[e.page - 1];
-    const { height } = page.getSize();
+    const p = pdf.getPages()[e.page - 1];
+    const h = p.getSize().height;
 
-    page.drawRectangle({
+    p.drawRectangle({
       x: e.x,
-      y: height - e.y - e.height,
-      width: e.width,
-      height: e.height,
+      y: h - e.y - e.h,
+      width: e.w,
+      height: e.h,
       color: PDFLib.rgb(1,1,1)
     });
 
-    page.drawText(e.text, {
+    p.drawText(e.text, {
       x: e.x,
-      y: height - e.y - e.height + 2,
+      y: h - e.y - e.h + 2,
       size: e.size,
       color: PDFLib.rgb(0,0,0)
     });
   });
 
   const out = await pdf.save();
-  const blob = new Blob([out], { type: 'application/pdf' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = URL.createObjectURL(new Blob([out]));
   a.download = 'edited.pdf';
   a.click();
-});
+};
 </script>
 
 </body>
