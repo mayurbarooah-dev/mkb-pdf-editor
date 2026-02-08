@@ -4,14 +4,13 @@
 <meta charset="UTF-8" />
 <title>Enterprise PDF Editor</title>
 
-<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
-/* ========== ENTERPRISE DARK THEME ========== */
+/* ===== ENTERPRISE DARK THEME ===== */
 body {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont;
+  font-family: Inter, system-ui;
   background: #020617;
   color: #e5e7eb;
 }
@@ -20,19 +19,13 @@ body {
   position: sticky;
   top: 0;
   height: 56px;
-  background: rgba(11,16,32,0.9);
-  backdrop-filter: blur(8px);
+  background: rgba(11,16,32,0.95);
   border-bottom: 1px solid #1e293b;
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
+  gap: 12px;
   z-index: 100;
-  gap: 16px;
-}
-
-.logo {
-  font-weight: 600;
-  color: #fff;
 }
 
 .toolbar-btn {
@@ -40,29 +33,16 @@ body {
   border-radius: 6px;
   color: #94a3b8;
   cursor: pointer;
+  border: 1px solid #1e293b;
 }
 
 .toolbar-btn:hover {
   background: #111827;
-  color: #e5e7eb;
+  color: #fff;
 }
 
-#textToolbar {
-  display: none;
-  gap: 8px;
-}
-
-input, select {
-  background: #0b1020;
-  border: 1px solid #1e293b;
-  color: #e5e7eb;
-  border-radius: 4px;
-  padding: 4px 6px;
-}
-
-/* ========== LAYOUT ========== */
 #status {
-  padding: 10px 20px;
+  padding: 8px 16px;
   font-size: 13px;
   color: #94a3b8;
 }
@@ -74,15 +54,13 @@ input, select {
 .page {
   position: relative;
   margin: 0 auto 30px;
-  background: #fff;
+  background: white;
 }
 
-/* ========== TEXT EDITING ========== */
 .pdf-text {
   position: absolute;
   cursor: text;
   padding: 2px 4px;
-  min-width: 20px;
 }
 
 .edit-highlight {
@@ -90,25 +68,21 @@ input, select {
   background: rgba(37,99,235,0.08);
 }
 
-/* ========== ALIGNMENT GUIDES ========== */
-.alignment-guide {
-  position: fixed;
-  background: rgba(37,99,235,0.7);
-  pointer-events: none;
-  z-index: 9999;
-  display: none;
+.match-highlight {
+  background: rgba(37,99,235,0.18);
+  outline: 1px solid rgba(37,99,235,0.6);
 }
 
-.alignment-guide.v {
-  width: 1px;
-  top: 0;
-  bottom: 0;
+.signature {
+  position: absolute;
+  cursor: move;
 }
 
-.alignment-guide.h {
-  height: 1px;
-  left: 0;
-  right: 0;
+input, select {
+  background: #0b1020;
+  border: 1px solid #1e293b;
+  color: #e5e7eb;
+  padding: 4px;
 }
 </style>
 </head>
@@ -116,47 +90,48 @@ input, select {
 <body>
 
 <div class="topbar">
-  <div class="logo">PDF Editor</div>
+  <strong>PDF Editor</strong>
 
   <label class="toolbar-btn">
-    Upload PDF
-    <input type="file" id="fileInput" accept="application/pdf" hidden>
+    Upload
+    <input type="file" id="fileInput" hidden accept="application/pdf">
   </label>
 
-  <div id="textToolbar">
-    <select id="fontSize">
-      <option>10</option><option>12</option><option>14</option>
-      <option>16</option><option>18</option><option>24</option>
-    </select>
-    <input type="color" id="fontColor" value="#000000">
-    <button class="toolbar-btn" id="boldBtn">B</button>
-  </div>
+  <div class="toolbar-btn" id="toggleReplace">Replace</div>
+  <div class="toolbar-btn" id="addSignature">Signature</div>
+  <div class="toolbar-btn" id="runOCR">OCR</div>
+  <div class="toolbar-btn" id="exportBtn">Export</div>
+
+  <div class="toolbar-btn" id="upgradeBtn">Upgrade</div>
+</div>
+
+<div class="topbar" id="replacePanel" style="display:none">
+  <input id="findInput" placeholder="Find">
+  <input id="replaceInput" placeholder="Replace">
+  <button class="toolbar-btn" id="findBtn">Find</button>
+  <button class="toolbar-btn" id="replaceBtn">Replace</button>
+  <button class="toolbar-btn" id="replaceAllBtn">All</button>
 </div>
 
 <div id="status">Upload a PDF to begin</div>
 <div id="viewer"></div>
 
-<div id="vGuide" class="alignment-guide v"></div>
-<div id="hGuide" class="alignment-guide h"></div>
-
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
+let isPro = false;
+let activeText = null;
+let matches = [];
+
 const viewer = document.getElementById("viewer");
 const statusEl = document.getElementById("status");
-const fileInput = document.getElementById("fileInput");
 
-let activeText = null;
-const SNAP = 5;
-
+/* ===== FILE LOAD ===== */
 fileInput.onchange = async () => {
   viewer.innerHTML = "";
-  statusEl.textContent = "Loading PDF…";
-
   const file = fileInput.files[0];
-  const url = URL.createObjectURL(file);
-  const pdf = await pdfjsLib.getDocument(url).promise;
+  const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
 
   statusEl.textContent = `Loaded ${pdf.numPages} pages`;
 
@@ -175,81 +150,105 @@ fileInput.onchange = async () => {
     canvas.height = viewport.height;
     pageDiv.appendChild(canvas);
 
-    const ctx = canvas.getContext("2d");
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
 
-    // TEXT LAYER (simple)
-    const textContent = await page.getTextContent();
-    textContent.items.forEach(item => {
-      const span = document.createElement("div");
-      span.className = "pdf-text";
-      span.textContent = item.str;
-      span.style.left = item.transform[4] * scale + "px";
-      span.style.top = viewport.height - item.transform[5] * scale + "px";
-      span.style.fontSize = item.height * scale + "px";
-      span.style.color = "#000";
-      span.contentEditable = true;
-      pageDiv.appendChild(span);
+    const text = await page.getTextContent();
+    text.items.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "pdf-text";
+      div.textContent = item.str;
+      div.style.left = item.transform[4] * scale + "px";
+      div.style.top = viewport.height - item.transform[5] * scale + "px";
+      div.style.fontSize = item.height * scale + "px";
+      div.contentEditable = true;
+      pageDiv.appendChild(div);
     });
 
     viewer.appendChild(pageDiv);
   }
 };
 
-// SINGLE CLICK EDIT
+/* ===== SINGLE CLICK EDIT ===== */
 document.addEventListener("click", e => {
   const t = e.target.closest(".pdf-text");
-  if (!t) {
-    if (activeText) activeText.classList.remove("edit-highlight");
-    activeText = null;
-    document.getElementById("textToolbar").style.display = "none";
-    return;
-  }
+  document.querySelectorAll(".pdf-text").forEach(x => x.classList.remove("edit-highlight"));
 
-  if (activeText) activeText.classList.remove("edit-highlight");
+  if (!t) return;
   activeText = t;
-  activeText.classList.add("edit-highlight");
-  document.getElementById("textToolbar").style.display = "flex";
+  t.classList.add("edit-highlight");
 });
 
-// FONT CONTROLS
-fontSize.onchange = () => {
-  if (activeText) activeText.style.fontSize = fontSize.value + "px";
+/* ===== FIND & REPLACE ===== */
+toggleReplace.onclick = () =>
+  replacePanel.style.display = replacePanel.style.display === "flex" ? "none" : "flex";
+
+findBtn.onclick = () => {
+  matches = [];
+  document.querySelectorAll(".pdf-text").forEach(el => {
+    el.classList.remove("match-highlight");
+    if (el.textContent.includes(findInput.value)) {
+      el.classList.add("match-highlight");
+      matches.push(el);
+    }
+  });
+  statusEl.textContent = `${matches.length} matches found`;
 };
 
-fontColor.oninput = () => {
-  if (activeText) activeText.style.color = fontColor.value;
+replaceBtn.onclick = () => {
+  if (!isPro) return upgrade();
+  if (!matches.length) return;
+  const el = matches.shift();
+  el.textContent = el.textContent.replace(findInput.value, replaceInput.value);
 };
 
-boldBtn.onclick = () => {
-  if (activeText) {
-    activeText.style.fontWeight =
-      activeText.style.fontWeight === "bold" ? "normal" : "bold";
+replaceAllBtn.onclick = () => {
+  if (!isPro) return upgrade();
+  let count = 0;
+  document.querySelectorAll(".pdf-text").forEach(el => {
+    if (el.textContent.includes(findInput.value)) {
+      el.textContent = el.textContent.split(findInput.value).join(replaceInput.value);
+      count++;
+    }
+  });
+  statusEl.textContent = `Replaced ${count} occurrences`;
+};
+
+/* ===== SIGNATURE ===== */
+addSignature.onclick = () => {
+  if (!isPro) return upgrade();
+  const sig = document.createElement("div");
+  sig.textContent = "✍ Your Signature";
+  sig.className = "signature";
+  sig.style.top = "100px";
+  sig.style.left = "100px";
+  sig.style.color = "#000";
+  viewer.appendChild(sig);
+};
+
+/* ===== OCR (BACKEND HOOK) ===== */
+runOCR.onclick = () => {
+  if (!isPro) return upgrade();
+  statusEl.textContent = "OCR queued… (backend required)";
+};
+
+/* ===== EXPORT (WATERMARK LOGIC) ===== */
+exportBtn.onclick = () => {
+  if (!isPro) {
+    alert("Watermark applied. Upgrade to remove.");
+  } else {
+    alert("Exporting clean PDF (next step backend)");
   }
 };
 
-// SIMPLE SNAPPING (CENTER)
-document.addEventListener("mousemove", e => {
-  if (!activeText) return;
+/* ===== PAID LOCK ===== */
+function upgrade() {
+  alert("Upgrade to Pro\n₹99/month | ₹999/year");
+}
 
-  const rect = activeText.getBoundingClientRect();
-  const cx = window.innerWidth / 2;
-  const cy = window.innerHeight / 2;
-
-  if (Math.abs(rect.left + rect.width / 2 - cx) < SNAP) {
-    activeText.style.left =
-      cx - rect.width / 2 + window.scrollX + "px";
-    vGuide.style.left = cx + "px";
-    vGuide.style.display = "block";
-  } else vGuide.style.display = "none";
-
-  if (Math.abs(rect.top + rect.height / 2 - cy) < SNAP) {
-    activeText.style.top =
-      cy - rect.height / 2 + window.scrollY + "px";
-    hGuide.style.top = cy + "px";
-    hGuide.style.display = "block";
-  } else hGuide.style.display = "none";
-});
+upgradeBtn.onclick = () => {
+  isPro = true;
+  statusEl.textContent = "Pro activated (demo mode)";
+};
 </script>
 
 </body>
